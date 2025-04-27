@@ -1,0 +1,366 @@
+https: // console.cloud.google.com / bigquery ? sq = 1053551183967 :251ec46b7da7457a81f100d8e9288430 -- task 1
+SELECT event_timestamp,
+  user_pseudo_id,
+  (
+    SELECT value.int_value
+    FROM UNNEST(event_params)
+    WHERE key = 'ga_session_id'
+  ) AS session_id,
+  event_name,
+  geo.country as country,
+  device.category,
+  traffic_source.`source` as source,
+  traffic_source.medium as medium,
+  traffic_source.name as campaign
+FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`
+WHERE _table_suffix BETWEEN '20210101' AND '20211231'
+  AND event_name IN (
+    'session_start',
+    'view_item',
+    'add_to_cart',
+    'begin_checkout',
+    'add_shipping_info',
+    'add_payment_info',
+    'purchase'
+  )
+  AND traffic_source.source <> '(data deleted)'
+  AND traffic_source.medium <> '(data deleted)'
+  AND traffic_source.name <> '(data deleted)';
+-- task 2 adding Illya's columns
+WITH session_events AS (
+  SELECT timestamp_micros(event_timestamp) as event_date,
+    traffic_source.source AS `source`,
+    traffic_source.medium AS medium,
+    traffic_source.name AS campaign,
+    event_name,
+    CONCAT(
+      user_pseudo_id,
+      (
+        SELECT value.int_value
+        FROM UNNEST(event_params)
+        WHERE key = 'ga_session_id'
+      )
+    ) AS user_session_id
+  FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`
+  WHERE _table_suffix BETWEEN '20210101' AND '20211231'
+    AND traffic_source.source <> '(data deleted)'
+    AND traffic_source.medium <> '(data deleted)'
+    AND traffic_source.name <> '(data deleted)'
+)
+SELECT event_date,
+  'source',
+  medium,
+  campaign,
+  COUNT(DISTINCT user_session_id) AS user_sessions_count,
+  count(distinct user_session_id) as user_sessions_count1,
+  COUNT(
+    DISTINCT CASE
+      WHEN event_name = 'add_to_cart' THEN user_session_id
+    END
+  ) as added_cart_count,
+  count(
+    distinct case
+      when event_name = 'add_to_cart' then user_session_id
+    end
+  ) as added_to_cart_count1,
+  COUNT(
+    DISTINCT CASE
+      WHEN event_name = 'session_start' THEN user_session_id
+    END
+  ) AS session_start_count,
+  CONCAT(
+    ROUND(
+      COALESCE(
+        COUNT(
+          DISTINCT CASE
+            WHEN event_name = 'add_to_cart' THEN user_session_id
+          END
+        ) / NULLIF(
+          COUNT(
+            DISTINCT CASE
+              WHEN event_name = 'session_start' THEN user_session_id
+            END
+          ),
+          0
+        ),
+        0
+      ) * 100,
+      2
+    ),
+    '%'
+  ) AS visit_to_cart,
+  CONCAT(
+    ROUND(
+      COALESCE(
+        COUNT(
+          DISTINCT CASE
+            WHEN event_name = 'begin_checkout' THEN user_session_id
+          END
+        ) / NULLIF(
+          COUNT(
+            DISTINCT CASE
+              WHEN event_name = 'session_start' THEN user_session_id
+            END
+          ),
+          0
+        ),
+        0
+      ) * 100,
+      2
+    ),
+    '%'
+  ) AS visit_to_checkout,
+  CONCAT(
+    ROUND(
+      COALESCE(
+        COUNT(
+          DISTINCT CASE
+            WHEN event_name = 'purchase' THEN user_session_id
+          END
+        ) / NULLIF(
+          COUNT(
+            DISTINCT CASE
+              WHEN event_name = 'session_start' THEN user_session_id
+            END
+          ),
+          0
+        ),
+        0
+      ) * 100,
+      2
+    ),
+    '%'
+  ) AS visit_to_purchase
+FROM session_events
+GROUP BY event_date,
+  `source`,
+  medium,
+  campaign
+ORDER BY event_date DESC;
+-- task 2 final
+WITH session_events AS (
+  SELECT timestamp_micros(event_timestamp) as event_date,
+    traffic_source.source AS `source`,
+    traffic_source.medium AS medium,
+    traffic_source.name AS campaign,
+    event_name,
+    CONCAT(
+      user_pseudo_id,
+      (
+        SELECT value.int_value
+        FROM UNNEST(event_params)
+        WHERE key = 'ga_session_id'
+      )
+    ) AS user_session_id
+  FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`
+  WHERE _table_suffix BETWEEN '20210101' AND '20211231'
+    AND traffic_source.source <> '(data deleted)'
+    AND traffic_source.medium <> '(data deleted)'
+    AND traffic_source.name <> '(data deleted)'
+)
+SELECT event_date,
+  'source',
+  medium,
+  campaign,
+  COUNT(DISTINCT user_session_id) AS user_sessions_count,
+  CONCAT(
+    ROUND(
+      COALESCE(
+        COUNT(
+          DISTINCT CASE
+            WHEN event_name = 'add_to_cart' THEN user_session_id
+          END
+        ) / NULLIF(
+          COUNT(
+            DISTINCT CASE
+              WHEN event_name = 'session_start' THEN user_session_id
+            END
+          ),
+          0
+        ),
+        0
+      ) * 100,
+      2
+    ),
+    '%'
+  ) AS visit_to_cart,
+  CONCAT(
+    ROUND(
+      COALESCE(
+        COUNT(
+          DISTINCT CASE
+            WHEN event_name = 'begin_checkout' THEN user_session_id
+          END
+        ) / NULLIF(
+          COUNT(
+            DISTINCT CASE
+              WHEN event_name = 'session_start' THEN user_session_id
+            END
+          ),
+          0
+        ),
+        0
+      ) * 100,
+      2
+    ),
+    '%'
+  ) AS visit_to_checkout,
+  CONCAT(
+    ROUND(
+      COALESCE(
+        COUNT(
+          DISTINCT CASE
+            WHEN event_name = 'purchase' THEN user_session_id
+          END
+        ) / NULLIF(
+          COUNT(
+            DISTINCT CASE
+              WHEN event_name = 'session_start' THEN user_session_id
+            END
+          ),
+          0
+        ),
+        0
+      ) * 100,
+      2
+    ),
+    '%'
+  ) AS visit_to_purchase
+FROM session_events
+GROUP BY event_date,
+  `source`,
+  medium,
+  campaign
+ORDER BY event_date DESC;
+--task 3
+WITH session_start_data AS (
+  SELECT user_pseudo_id,
+    CONCAT(
+      user_pseudo_id,
+      CAST(
+        (
+          SELECT ep.value.int_value
+          FROM UNNEST(event_params) AS ep
+          WHERE ep.key = 'ga_session_id'
+        ) AS STRING
+      )
+    ) AS session_id,
+    CASE
+      WHEN REGEXP_EXTRACT(
+        (
+          SELECT ep.value.string_value
+          FROM UNNEST(event_params) AS ep
+          WHERE ep.key = 'page_location'
+        ),
+        'https?://[^/]+(/[^?]*)?'
+      ) = '/' THEN '/ "home page"'
+      ELSE REGEXP_EXTRACT(
+        (
+          SELECT ep.value.string_value
+          FROM UNNEST(event_params) AS ep
+          WHERE ep.key = 'page_location'
+        ),
+        'https?://[^/]+(/[^?]*)?'
+      )
+    END AS page_path
+  FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`
+  WHERE _table_suffix BETWEEN '20200101' AND '20201231'
+    AND event_name = 'session_start'
+),
+purchase_data AS (
+  SELECT user_pseudo_id,
+    CONCAT(
+      user_pseudo_id,
+      CAST(
+        (
+          SELECT ep.value.int_value
+          FROM UNNEST(event_params) AS ep
+          WHERE ep.key = 'ga_session_id'
+        ) AS STRING
+      )
+    ) AS session_id
+  FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`
+  WHERE _table_suffix BETWEEN '20200101' AND '20201231'
+    AND event_name = 'purchase'
+)
+SELECT ssd.page_path,
+  COUNT(DISTINCT ssd.session_id) AS unique_sessions_count,
+  COUNT(pd.session_id) AS purchases_count,
+  CONCAT(
+    ROUND(
+      COALESCE(
+        COUNT(pd.session_id) / NULLIF(COUNT(DISTINCT ssd.session_id), 0),
+        0
+      ) * 100,
+      2
+    ),
+    '%'
+  ) AS visit_to_purchase
+FROM session_start_data ssd
+  LEFT JOIN purchase_data pd ON ssd.user_pseudo_id = pd.user_pseudo_id
+  AND ssd.session_id = pd.session_id
+GROUP BY ssd.page_path
+ORDER BY visit_to_purchase DESC;
+-- task 4
+BEGIN CREATE TEMP TABLE user_sessions AS (
+  WITH bb AS (
+    SELECT CONCAT(
+        user_pseudo_id,
+        (
+          SELECT value.int_value
+          FROM UNNEST(event_params)
+          WHERE key = 'ga_session_id'
+        )
+      ) AS user_session_id,
+      IFNULL(
+        (
+          SELECT ep.value.int_value
+          FROM UNNEST(event_params) AS ep
+          WHERE ep.key = 'engagement_time_msec'
+        ),
+        0
+      ) AS eng_time_msec,
+      IFNULL(
+        CAST(
+          (
+            SELECT ep.value.int_value
+            FROM UNNEST(event_params) AS ep
+            WHERE ep.key = 'session_engaged'
+          ) AS INT64
+        ),
+        0
+      ) AS engaged_y_n
+    FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`
+    WHERE _table_suffix BETWEEN '20000101' AND '20240221'
+  )
+  SELECT user_session_id,
+    SUM(eng_time_msec) AS time_spent,
+    MAX(engaged_y_n) AS engaged_y_n
+  FROM bb
+  GROUP BY 1
+);
+CREATE TEMP TABLE purchases AS (
+  WITH aa AS (
+    SELECT DISTINCT CONCAT(
+        user_pseudo_id,
+        (
+          SELECT value.int_value
+          FROM UNNEST(event_params)
+          WHERE key = 'ga_session_id'
+        )
+      ) AS user_session_id,
+      1 AS purchase_y_n
+    FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`
+    WHERE _table_suffix BETWEEN '20000101' AND '20240221'
+      AND event_name = 'purchase'
+  )
+  SELECT user_session_id,
+    MAX(purchase_y_n) AS purchase_y_n
+  FROM aa
+  GROUP BY 1
+);
+SELECT CORR(us.engaged_y_n, COALESCE(pr.purchase_y_n, 0)) AS corr_eng_purch,
+  CORR(us.time_spent, COALESCE(pr.purchase_y_n, 0)) AS corr_time_purch
+FROM user_sessions us
+  LEFT JOIN purchases pr ON us.user_session_id = pr.user_session_id;
+END;
